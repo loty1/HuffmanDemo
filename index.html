@@ -127,7 +127,7 @@
         <p style="margin:0; font-size:0.92rem; line-height:1.7;">
             <strong>📖 算法回顾（课件第31页）：</strong><br>
             1. 将每个权值看作一棵单结点二叉树，形成森林 <em>F</em>。<br>
-            2. 重复以下步骤直到只剩一棵树：从 <em>F</em> 中选出<strong>根结点权值最小</strong>的两棵树，合并成一棵新树（新根权值 = 两子树根权值之和），将新树加入 <em>F</em>。<br>
+            2. 重复以下步骤直到只剩一棵树：从 <em>F</em> 中选出<strong>根结点权值最小</strong>的两棵树，合并成一棵新树（新根权值 = 两子树根权值之和）。<br>
             3. 最后剩下的是<strong>哈夫曼树</strong>。左分支标记 <strong>0</strong>，右分支标记 <strong>1</strong>，从根到叶的路径即该叶结点的<strong>哈夫曼编码</strong>。
         </p>
     </div>
@@ -289,7 +289,7 @@
         const containerWidth = container.clientWidth - 40;
 
         const nodeRadius = 24;
-        const levelHeight = 100;          // 增加层高，层间更疏朗
+        const levelHeight = 100;
         const topMargin = 60;
         const bottomMargin = 70;
 
@@ -303,7 +303,6 @@
         const allNodes = [];
         for (const root of forest) collectNodes(root, allNodes);
 
-        // 宽度估算系数，因深层收敛更快，总宽度可适度调整
         const NODE_WIDTH_ESTIMATE = 85;
         let xOffset = 80;
         const treePositions = [];
@@ -324,11 +323,9 @@
         let svgInner = '';
 
         const nodeCoords = new Map();
-        // 水平基准保持100，上层分支角度不变；衰减因子降至0.7，使下层收敛更快
-        const HORIZ_BASE = 120;
-        const DECAY = 0.7;
+        const minGap = nodeRadius * 3.2;
         for (const tp of treePositions) {
-            assignCoords(tp.root, tp.cx, topMargin, 0, maxDepth, HORIZ_BASE, levelHeight, nodeCoords, DECAY);
+            assignCoordsByWidth(tp.root, tp.cx, topMargin, 0, levelHeight, nodeCoords, minGap);
         }
 
         for (const tp of treePositions) {
@@ -369,7 +366,6 @@
             svgInner += `<text x="${midX}" y="${midY+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#4a5568">${lbl}</text>`;
         }
 
-        // 高亮集合（最小两棵树）
         const highlightIds = new Set();
         if (currentStep < forestHistory.length - 1 && forest.length >= 2) {
             const sorted = [...forest].sort((a, b) => a.weight - b.weight || a.id - b.id);
@@ -380,7 +376,6 @@
             for (const n of tree2Nodes) highlightIds.add(n.id);
         }
 
-        // 新合并树集合
         const newMergedIds = new Set();
         if (currentStep > 0) {
             const prevForest = forestHistory[currentStep - 1];
@@ -394,7 +389,6 @@
             }
         }
 
-        // 绘制结点
         for (const [nodeId, coord] of nodeCoords) {
             const node = findNodeById(forest, nodeId);
             const label = node ? node.label : '?';
@@ -450,19 +444,29 @@
         return 1 + Math.max(getDepth(root.left), getDepth(root.right));
     }
 
-    function assignCoords(node, cx, topY, level, maxDepth, horizGap, levelHeight, map, decay = 0.7) {
+    function getSubtreeWidth(node, minGap) {
+        if (!node) return 0;
+        if (!node.left && !node.right) return minGap;
+        const leftW = getSubtreeWidth(node.left, minGap);
+        const rightW = getSubtreeWidth(node.right, minGap);
+        return leftW + rightW;
+    }
+
+    function assignCoordsByWidth(node, cx, topY, level, levelHeight, map, minGap) {
         if (!node) return;
         const y = topY + level * levelHeight;
         map.set(node.id, { x: cx, y });
 
-        if (node.left && node.right) {
-            const childOffset = horizGap * Math.pow(decay, level);
-            assignCoords(node.left, cx - childOffset, topY, level + 1, maxDepth, horizGap, levelHeight, map, decay);
-            assignCoords(node.right, cx + childOffset, topY, level + 1, maxDepth, horizGap, levelHeight, map, decay);
-        } else if (node.left) {
-            assignCoords(node.left, cx - 40, topY, level + 1, maxDepth, horizGap, levelHeight, map, decay);
-        } else if (node.right) {
-            assignCoords(node.right, cx + 40, topY, level + 1, maxDepth, horizGap, levelHeight, map, decay);
+        const leftW = getSubtreeWidth(node.left, minGap);
+        const rightW = getSubtreeWidth(node.right, minGap);
+
+        if (node.left) {
+            const leftCx = cx - (rightW / 2);
+            assignCoordsByWidth(node.left, leftCx, topY, level + 1, levelHeight, map, minGap);
+        }
+        if (node.right) {
+            const rightCx = cx + (leftW / 2);
+            assignCoordsByWidth(node.right, rightCx, topY, level + 1, levelHeight, map, minGap);
         }
     }
 
