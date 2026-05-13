@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>哈夫曼树构建过程 - 交互式演示</title>
+    <style>
+        :root {
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --text: #2c3e50;
+            --text-secondary: #5a6c7d;
+            --border: #e0e5ec;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            --primary: #4a90d9;
+            --primary-hover: #357abd;
+            --danger: #e74c3c;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --highlight: #ffe082;
+            --highlight-border: #f9a825;
+            --node-default: #b0c4de;
+            --node-merged: #81c784;
+            --node-highlight: #ffcc80;
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #e8edf5 0%, #f0f4f8 30%, #fafbfc 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--text);
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        .header { text-align: center; padding: 30px 20px 10px; }
+        .header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.5px; color: #1a1a2e; margin-bottom: 6px; }
+        .header .subtitle { font-size: 0.95rem; color: var(--text-secondary); font-weight: 400; }
+        .badge-row { margin-top: 14px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .badge {
+            display: inline-block; background: #eef2f7; color: #4a5568; padding: 5px 14px;
+            border-radius: 20px; font-size: 0.82rem; font-weight: 500; border: 1px solid #dce3ec;
+        }
+
+        .card {
+            background: var(--card-bg); border-radius: 16px; padding: 24px 28px;
+            margin-bottom: 22px; box-shadow: var(--shadow); border: 1px solid var(--border);
+        }
+        .card h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 16px; color: #1a1a2e; display: flex; align-items: center; gap: 8px; }
+
+        .input-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .input-row input {
+            flex: 1; min-width: 280px; padding: 12px 16px; border: 2px solid var(--border);
+            border-radius: 10px; font-size: 1rem; font-family: var(--font-mono);
+            transition: border-color 0.2s; background: #fafbfc;
+        }
+        .input-row input:focus { outline: none; border-color: var(--primary); background: #fff; }
+        .input-row .hint { color: var(--text-secondary); font-size: 0.85rem; flex-basis: 100%; }
+
+        .btn {
+            padding: 11px 22px; border: none; border-radius: 10px; font-size: 0.95rem;
+            font-weight: 600; cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px; white-space: nowrap;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        .btn-outline { background: #fff; color: var(--primary); border: 2px solid var(--primary); }
+        .btn-outline:hover { background: #e8f0fe; }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-success:hover { opacity: 0.9; }
+        .btn-warning { background: var(--warning); color: #fff; }
+        .btn-warning:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+
+        .status-bar { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 10px 0; font-size: 0.9rem; color: var(--text-secondary); }
+        .status-bar .step-num { font-weight: 700; font-size: 1.3rem; color: var(--primary); }
+
+        .forest-canvas-wrapper {
+            position: relative;
+            background: #fafcfd;
+            border-radius: 12px;
+            border: 2px dashed #e0e5ec;
+            max-height: 500px;
+            overflow-y: auto;
+            overflow-x: auto;
+            padding: 20px 20px 10px;
+            margin-top: 10px;
+        }
+        .forest-svg { display: block; min-width: 100%; }
+
+        .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 0.85rem; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+        .legend-rect { width: 14px; height: 14px; border: 2px solid #388e3c; background: #81c784; display: inline-block; }
+
+        .code-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-family: var(--font-mono); }
+        .code-table th, .code-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); text-align: center; }
+        .code-table th { background: #f5f7fa; font-weight: 600; color: #4a5568; }
+        .code-table tr:hover td { background: #fafcfd; }
+
+        @media (max-width: 640px) {
+            .header h1 { font-size: 1.4rem; }
+            .card { padding: 18px 14px; }
+            .btn { padding: 10px 16px; font-size: 0.85rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🌳 哈夫曼树构建过程 · 交互式演示</h1>
+        <p class="subtitle">数据结构与算法分析 —— 二叉树应用</p>
+        <div class="badge-row">
+            <span class="badge">📐 贪心算法</span>
+            <span class="badge">🔢 带权路径长度 WPL</span>
+            <span class="badge">🔤 前缀编码</span>
+            <span class="badge">🖱 逐步动画</span>
+        </div>
+    </div>
+
+    <div class="card" style="background:#fffdf7; border-left: 4px solid #f9a825;">
+        <p style="margin:0; font-size:0.92rem; line-height:1.7;">
+            <strong>📖 算法回顾（课件第31页）：</strong><br>
+            1. 将每个权值看作一棵单结点二叉树，形成森林 <em>F</em>。<br>
+            2. 重复以下步骤直到只剩一棵树：从 <em>F</em> 中选出<strong>根结点权值最小</strong>的两棵树，合并成一棵新树（新根权值 = 两子树根权值之和），将新树加入 <em>F</em>。<br>
+            3. 最后剩下的是<strong>哈夫曼树</strong>。左分支标记 <strong>0</strong>，右分支标记 <strong>1</strong>，从根到叶的路径即该叶结点的<strong>哈夫曼编码</strong>。
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>⌨ 输入权值序列</h2>
+        <div class="input-row">
+            <input type="text" id="weightInput" value="7,5,2,4" placeholder="例如: 7,5,2,4 或 a:7,b:5,c:2,d:4">
+            <button class="btn btn-primary" onclick="initHuffman()">🔄 初始化森林</button>
+        </div>
+        <p class="hint">💡 支持纯数字（如 7,5,2,4）或带标签（如 a:7,b:5,c:2,d:4）。标签用于显示最终编码表。</p>
+    </div>
+
+    <div class="card">
+        <h2>🎮 操作控制</h2>
+        <div class="btn-group">
+            <button class="btn btn-warning" id="btnPrev" onclick="prevStep()" disabled>⏮ 上一步</button>
+            <button class="btn btn-success" id="btnNext" onclick="nextStep()">⏭ 下一步</button>
+            <button class="btn btn-outline" id="btnAuto" onclick="toggleAuto()">▶ 自动演示</button>
+            <button class="btn btn-outline" onclick="resetAll()">🔁 重置</button>
+        </div>
+        <div class="status-bar">
+            <span>当前步数：<span class="step-num" id="stepDisplay">0</span> / <span id="totalSteps">0</span></span>
+            <span id="stepDescription" style="color:#5a6c7d;">👆 请先初始化森林，然后点击"下一步"</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🌲 当前森林</h2>
+        <div class="forest-canvas-wrapper" id="forestContainer">
+            <svg class="forest-svg" id="forestSvg" width="100%" height="100"></svg>
+        </div>
+        <div class="legend">
+            <div class="legend-item"><span class="legend-dot" style="background:#ffcc80;"></span> 本轮选出的最小两棵树（圆形）</div>
+            <div class="legend-item"><span class="legend-rect"></span> 上一步合并产生的新树（方框）</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#b0c4de;"></span> 普通树（等待合并）</div>
+        </div>
+    </div>
+
+    <div class="card" id="codeTableCard" style="display:none;">
+        <h2>📋 哈夫曼编码表</h2>
+        <table class="code-table" id="codeTableBody">
+            <thead><tr><th>字符</th><th>权值</th><th>哈夫曼编码</th><th>编码长度</th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <p style="margin-top:14px; font-size:0.9rem; color:var(--text-secondary);">
+            📐 <strong>带权路径长度 WPL</strong> = Σ(权值 × 编码长度) = <span id="wplDisplay" style="font-weight:700; color:#e74c3c;"></span>
+        </p>
+    </div>
+</div>
+
+<script>
+    class HuffNode {
+        constructor(label, weight, left = null, right = null) {
+            this.label = label;
+            this.weight = weight;
+            this.left = left;
+            this.right = right;
+            this.id = HuffNode.idCounter++;
+        }
+        isLeaf() { return this.left === null && this.right === null; }
+    }
+    HuffNode.idCounter = 1;
+
+    let forestHistory = [];
+    let currentStep = 0;
+    let autoTimer = null;
+    let isAutoPlaying = false;
+    let originalLabels = [];
+    let originalWeights = [];
+
+    function initHuffman() {
+        stopAuto();
+        const raw = document.getElementById('weightInput').value.trim();
+        if (!raw) { alert('请输入权值序列！'); return; }
+
+        const parts = raw.split(/[,，\s]+/).filter(p => p.length > 0);
+        const labels = [];
+        const weights = [];
+
+        for (const p of parts) {
+            if (p.includes(':')) {
+                const [lb, w] = p.split(':');
+                labels.push(lb.trim());
+                weights.push(parseFloat(w.trim()));
+            } else {
+                const num = parseFloat(p);
+                if (isNaN(num)) { alert(`无法解析: "${p}"`); return; }
+                labels.push(String.fromCharCode(64 + labels.length + 1));
+                weights.push(num);
+            }
+        }
+
+        if (weights.length < 2) { alert('至少需要 2 个权值！'); return; }
+        if (weights.some(w => w <= 0)) { alert('权值必须为正数！'); return; }
+
+        originalLabels = [...labels];
+        originalWeights = [...weights];
+
+        const initialForest = [];
+        for (let i = 0; i < weights.length; i++) {
+            initialForest.push(new HuffNode(labels[i], weights[i]));
+        }
+
+        forestHistory = [initialForest];
+        currentStep = 0;
+
+        let forest = initialForest.map(n => n);
+        while (forest.length > 1) {
+            forest.sort((a, b) => a.weight - b.weight || a.id - b.id);
+            const left = forest.shift();
+            const right = forest.shift();
+            const merged = new HuffNode(
+                left.label + '+' + right.label,
+                left.weight + right.weight,
+                left,
+                right
+            );
+            forest.push(merged);
+            forestHistory.push(JSON.parse(JSON.stringify(forest)));
+        }
+
+        document.getElementById('totalSteps').textContent = forestHistory.length - 1;
+        document.getElementById('codeTableCard').style.display = 'none';
+        renderStep(0);
+    }
+
+    function renderStep(step) {
+        currentStep = Math.max(0, Math.min(step, forestHistory.length - 1));
+        const forest = forestHistory[currentStep];
+
+        document.getElementById('stepDisplay').textContent = currentStep;
+        document.getElementById('totalSteps').textContent = forestHistory.length - 1;
+
+        document.getElementById('btnPrev').disabled = (currentStep === 0);
+        document.getElementById('btnNext').disabled = (currentStep === forestHistory.length - 1);
+
+        if (currentStep === 0) {
+            document.getElementById('stepDescription').textContent =
+                '👆 初始森林：橙色标出的两棵树是权值最小的，将率先合并。';
+        } else if (currentStep === forestHistory.length - 1) {
+            document.getElementById('stepDescription').textContent =
+                '✅ 构建完成！这是最终的哈夫曼树。';
+        } else {
+            document.getElementById('stepDescription').textContent =
+                '🔍 本轮选出权值最小的两棵树（橙色圆），合并成新树（绿色方框）。';
+        }
+
+        drawForest(forest, currentStep);
+
+        if (currentStep === forestHistory.length - 1 && forest.length === 1) {
+            buildCodeTable(forest[0]);
+        }
+    }
+
+    function drawForest(forest, step) {
+        const svg = document.getElementById('forestSvg');
+        const container = document.getElementById('forestContainer');
+        const containerWidth = container.clientWidth - 40;
+
+        const nodeRadius = 24;
+        const levelHeight = 100;          // 增加层高，层间更疏朗
+        const topMargin = 60;
+        const bottomMargin = 70;
+
+        let maxDepth = 0;
+        for (const root of forest) {
+            const d = getDepth(root);
+            if (d > maxDepth) maxDepth = d;
+        }
+        const svgHeight = topMargin + (maxDepth - 1) * levelHeight + bottomMargin;
+
+        const allNodes = [];
+        for (const root of forest) collectNodes(root, allNodes);
+
+        // 宽度估算系数，因深层收敛更快，总宽度可适度调整
+        const NODE_WIDTH_ESTIMATE = 85;
+        let xOffset = 80;
+        const treePositions = [];
+        for (const root of forest) {
+            const treeNodes = [];
+            collectNodes(root, treeNodes);
+            const treeWidth = Math.max(treeNodes.length * NODE_WIDTH_ESTIMATE, 170);
+            const cx = xOffset + treeWidth / 2;
+            treePositions.push({ root, cx, treeNodes });
+            xOffset += treeWidth + 80;
+        }
+
+        const totalWidth = Math.max(xOffset + 80, containerWidth);
+        svg.setAttribute('width', totalWidth);
+        svg.setAttribute('height', svgHeight);
+        svg.setAttribute('viewBox', `0 0 ${totalWidth} ${svgHeight}`);
+
+        let svgInner = '';
+
+        const nodeCoords = new Map();
+        // 水平基准保持100，上层分支角度不变；衰减因子降至0.7，使下层收敛更快
+        const HORIZ_BASE = 120;
+        const DECAY = 0.7;
+        for (const tp of treePositions) {
+            assignCoords(tp.root, tp.cx, topMargin, 0, maxDepth, HORIZ_BASE, levelHeight, nodeCoords, DECAY);
+        }
+
+        for (const tp of treePositions) {
+            const root = tp.root;
+            const nodesInTree = [];
+            collectNodes(root, nodesInTree);
+            if (nodesInTree.length === 0) continue;
+            const xs = nodesInTree.map(n => nodeCoords.get(n.id)?.x).filter(x => x !== undefined);
+            const ys = nodesInTree.map(n => nodeCoords.get(n.id)?.y).filter(y => y !== undefined);
+            if (xs.length === 0) continue;
+            const minX = Math.min(...xs) - nodeRadius - 18;
+            const maxX = Math.max(...xs) + nodeRadius + 18;
+            const minY = Math.min(...ys) - nodeRadius - 15;
+            const maxY = Math.max(...ys) + nodeRadius + 25;
+            svgInner += `<rect x="${minX}" y="${minY}" width="${maxX-minX}" height="${maxY-minY}" rx="14" fill="#f9fafc" stroke="#dce3ec" stroke-width="1.5" stroke-dasharray="6,3"/>`;
+        }
+
+        const edges = [];
+        for (const [nodeId, coord] of nodeCoords) {
+            const node = findNodeById(forest, nodeId);
+            if (!node) continue;
+            if (node.left) {
+                const childCoord = nodeCoords.get(node.left.id);
+                if (childCoord) edges.push({ x1: coord.x, y1: coord.y, x2: childCoord.x, y2: childCoord.y, isLeft: true });
+            }
+            if (node.right) {
+                const childCoord = nodeCoords.get(node.right.id);
+                if (childCoord) edges.push({ x1: coord.x, y1: coord.y, x2: childCoord.x, y2: childCoord.y, isLeft: false });
+            }
+        }
+
+        for (const e of edges) {
+            const midX = (e.x1 + e.x2) / 2;
+            const midY = (e.y1 + e.y2) / 2;
+            const lbl = e.isLeft ? '0' : '1';
+            svgInner += `<line x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}" stroke="#8899aa" stroke-width="2" stroke-linecap="round"/>`;
+            svgInner += `<circle cx="${midX}" cy="${midY}" r="10" fill="#fff" stroke="#8899aa" stroke-width="1.5"/>`;
+            svgInner += `<text x="${midX}" y="${midY+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#4a5568">${lbl}</text>`;
+        }
+
+        // 高亮集合（最小两棵树）
+        const highlightIds = new Set();
+        if (currentStep < forestHistory.length - 1 && forest.length >= 2) {
+            const sorted = [...forest].sort((a, b) => a.weight - b.weight || a.id - b.id);
+            const tree1Nodes = [], tree2Nodes = [];
+            collectNodes(sorted[0], tree1Nodes);
+            collectNodes(sorted[1], tree2Nodes);
+            for (const n of tree1Nodes) highlightIds.add(n.id);
+            for (const n of tree2Nodes) highlightIds.add(n.id);
+        }
+
+        // 新合并树集合
+        const newMergedIds = new Set();
+        if (currentStep > 0) {
+            const prevForest = forestHistory[currentStep - 1];
+            const prevIds = new Set(prevForest.map(n => n.id));
+            for (const n of forest) {
+                if (!prevIds.has(n.id)) {
+                    const ns = [];
+                    collectNodes(n, ns);
+                    for (const nn of ns) newMergedIds.add(nn.id);
+                }
+            }
+        }
+
+        // 绘制结点
+        for (const [nodeId, coord] of nodeCoords) {
+            const node = findNodeById(forest, nodeId);
+            const label = node ? node.label : '?';
+            const weight = node ? node.weight : '?';
+
+            let labelFontSize = 11;
+            if (label.length > 6) labelFontSize = 9;
+            if (label.length > 10) labelFontSize = 8;
+
+            const isHighlight = highlightIds.has(nodeId);
+            const isNewMerged = newMergedIds.has(nodeId);
+
+            if (isNewMerged) {
+                const rectSize = nodeRadius * 1.4;
+                const x = coord.x - rectSize / 2;
+                const y = coord.y - rectSize / 2;
+                let fill = '#81c784';
+                let stroke = '#388e3c';
+                if (isHighlight) {
+                    fill = '#ffcc80';
+                    stroke = '#388e3c';
+                }
+                svgInner += `<rect x="${x}" y="${y}" width="${rectSize}" height="${rectSize}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="3"/>`;
+                svgInner += `<text x="${coord.x}" y="${coord.y-5}" text-anchor="middle" font-size="${labelFontSize}" font-weight="700" fill="#1a1a2e">${label}</text>`;
+                svgInner += `<text x="${coord.x}" y="${coord.y+13}" text-anchor="middle" font-size="12" font-weight="600" fill="#2c3e50">${weight}</text>`;
+            } else {
+                let fill = '#b0c4de';
+                let stroke = '#7a8fa6';
+                let strokeWidth = 2;
+                if (isHighlight) {
+                    fill = '#ffcc80';
+                    stroke = '#e67e22';
+                    strokeWidth = 3;
+                }
+                svgInner += `<circle cx="${coord.x}" cy="${coord.y}" r="${nodeRadius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+                svgInner += `<text x="${coord.x}" y="${coord.y-5}" text-anchor="middle" font-size="${labelFontSize}" font-weight="700" fill="#1a1a2e">${label}</text>`;
+                svgInner += `<text x="${coord.x}" y="${coord.y+13}" text-anchor="middle" font-size="12" font-weight="600" fill="#2c3e50">${weight}</text>`;
+            }
+        }
+
+        svg.innerHTML = svgInner;
+    }
+
+    function collectNodes(root, arr) {
+        if (!root) return;
+        arr.push(root);
+        if (root.left) collectNodes(root.left, arr);
+        if (root.right) collectNodes(root.right, arr);
+    }
+
+    function getDepth(root) {
+        if (!root) return 0;
+        return 1 + Math.max(getDepth(root.left), getDepth(root.right));
+    }
+
+    function assignCoords(node, cx, topY, level, maxDepth, horizGap, levelHeight, map, decay = 0.7) {
+        if (!node) return;
+        const y = topY + level * levelHeight;
+        map.set(node.id, { x: cx, y });
+
+        if (node.left && node.right) {
+            const childOffset = horizGap * Math.pow(decay, level);
+            assignCoords(node.left, cx - childOffset, topY, level + 1, maxDepth, horizGap, levelHeight, map, decay);
+            assignCoords(node.right, cx + childOffset, topY, level + 1, maxDepth, horizGap, levelHeight, map, decay);
+        } else if (node.left) {
+            assignCoords(node.left, cx - 40, topY, level + 1, maxDepth, horizGap, levelHeight, map, decay);
+        } else if (node.right) {
+            assignCoords(node.right, cx + 40, topY, level + 1, maxDepth, horizGap, levelHeight, map, decay);
+        }
+    }
+
+    function findNodeById(forest, id) {
+        for (const root of forest) {
+            const found = findInTree(root, id);
+            if (found) return found;
+        }
+        return null;
+    }
+    function findInTree(node, id) {
+        if (!node) return null;
+        if (node.id === id) return node;
+        return findInTree(node.left, id) || findInTree(node.right, id);
+    }
+
+    function buildCodeTable(root) {
+        const codes = [];
+        traverseForCode(root, '', codes);
+        const leafCodes = codes.filter(c => originalLabels.includes(c.label));
+        leafCodes.sort((a, b) => originalLabels.indexOf(a.label) - originalLabels.indexOf(b.label));
+
+        const tbody = document.querySelector('#codeTableBody tbody');
+        tbody.innerHTML = leafCodes.map(c => `
+                <tr>
+                    <td><strong>${c.label}</strong></td>
+                    <td>${c.weight}</td>
+                    <td style="color:#4a90d9; font-weight:600;">${c.code}</td>
+                    <td>${c.code.length}</td>
+                </tr>
+            `).join('');
+
+        const wpl = leafCodes.reduce((sum, c) => sum + c.weight * c.code.length, 0);
+        document.getElementById('wplDisplay').textContent = wpl;
+        document.getElementById('codeTableCard').style.display = 'block';
+    }
+
+    function traverseForCode(node, code, result) {
+        if (!node) return;
+        if (node.isLeaf()) {
+            result.push({ label: node.label, weight: node.weight, code: code || '0' });
+            return;
+        }
+        traverseForCode(node.left, code + '0', result);
+        traverseForCode(node.right, code + '1', result);
+    }
+
+    function nextStep() { if (currentStep < forestHistory.length - 1) renderStep(currentStep + 1); }
+    function prevStep() { if (currentStep > 0) renderStep(currentStep - 1); }
+    function resetAll() { stopAuto(); initHuffman(); }
+    function toggleAuto() { isAutoPlaying ? stopAuto() : startAuto(); }
+
+    function startAuto() {
+        isAutoPlaying = true;
+        document.getElementById('btnAuto').textContent = '⏸ 暂停演示';
+        document.getElementById('btnAuto').classList.add('btn-warning');
+        autoStep();
+    }
+    function stopAuto() {
+        isAutoPlaying = false;
+        if (autoTimer) clearTimeout(autoTimer);
+        document.getElementById('btnAuto').textContent = '▶ 自动演示';
+        document.getElementById('btnAuto').classList.remove('btn-warning');
+    }
+    function autoStep() {
+        if (!isAutoPlaying || currentStep >= forestHistory.length - 1) { stopAuto(); return; }
+        nextStep();
+        autoTimer = setTimeout(autoStep, 1200);
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT') return;
+        if (e.key === 'ArrowRight' || e.key === 'n') { e.preventDefault(); nextStep(); }
+        else if (e.key === 'ArrowLeft' || e.key === 'p') { e.preventDefault(); prevStep(); }
+        else if (e.key === ' ') { e.preventDefault(); toggleAuto(); }
+    });
+
+    let resizeDebounce;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeDebounce);
+        resizeDebounce = setTimeout(() => { if (forestHistory.length > 0) renderStep(currentStep); }, 300);
+    });
+
+    window.addEventListener('DOMContentLoaded', () => initHuffman());
+</script>
+</body>
+</html>
